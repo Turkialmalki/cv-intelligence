@@ -1,0 +1,146 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+    sans-serif;
+  --font-arabic: "IBM Plex Sans Arabic", "Noto Sans Arabic", ui-sans-serif,
+    system-ui, sans-serif;
+
+  --bg: #ffffff;
+  --bg-subtle: #f8f9fb;
+  --fg: #0f1219;
+  --fg-muted: #65728e;
+  --border: #e6e9ef;
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background-color: var(--bg);
+    color: var(--fg);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    overflow-x: hidden;
+  }
+
+  [dir="rtl"] body {
+    font-family: var(--font-arabic);
+  }
+
+  h1,
+  h2,
+  h3 {
+    letter-spacing: -0.022em;
+    text-wrap: balance;
+  }
+
+  [dir="rtl"] h1,
+  [dir="rtl"] h2,
+  [dir="rtl"] h3 {
+    letter-spacing: 0;
+  }
+
+  ::selection {
+    background: #d9ecff;
+    color: #0f1219;
+  }
+}
+
+@layer components {
+  .container-page {
+    @apply mx-auto w-full max-w-6xl px-5 sm:px-6 lg:px-8;
+  }
+
+  .card {
+    @apply rounded-2xl border border-ink-200/70 bg-white shadow-card;
+  }
+
+  .card-quiet {
+    @apply rounded-2xl border border-ink-200/60 bg-ink-50/50;
+  }
+
+  .btn {
+    @apply inline-flex select-none items-center justify-center gap-2 rounded-xl
+      px-5 py-3 text-[15px] font-semibold transition-all duration-200
+      disabled:pointer-events-none disabled:opacity-45;
+    min-height: 48px;
+  }
+
+  .btn-primary {
+    @apply btn bg-ink-900 text-white hover:bg-ink-800 active:scale-[0.985];
+    box-shadow: 0 1px 2px rgba(15, 18, 25, 0.16),
+      0 12px 28px -14px rgba(15, 18, 25, 0.55);
+  }
+
+  .btn-secondary {
+    @apply btn border border-ink-200 bg-white text-ink-900 hover:bg-ink-50
+      active:scale-[0.985];
+  }
+
+  .btn-ghost {
+    @apply btn text-ink-600 hover:bg-ink-50 hover:text-ink-900;
+  }
+
+  .eyebrow {
+    @apply text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-500;
+  }
+
+  [dir="rtl"] .eyebrow {
+    @apply tracking-normal;
+  }
+
+  .field {
+    @apply w-full rounded-xl border border-ink-200 bg-white px-4 py-3 text-[15px]
+      text-ink-900 outline-none transition
+      placeholder:text-ink-400
+      focus:border-accent-500 focus:ring-4 focus:ring-accent-500/12;
+  }
+
+  .hairline {
+    @apply h-px w-full bg-gradient-to-r from-transparent via-ink-200 to-transparent;
+  }
+}
+
+/* Subtle page-level ambience — restrained, not a purple AI gradient. */
+.ambient-top {
+  background-image: radial-gradient(
+      60rem 30rem at 50% -8rem,
+      rgba(51, 136, 251, 0.09),
+      transparent 62%
+    ),
+    radial-gradient(40rem 24rem at 92% 0%, rgba(18, 166, 114, 0.06), transparent 60%);
+}
+
+.grid-faint {
+  background-image: linear-gradient(rgba(15, 18, 25, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(15, 18, 25, 0.035) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(48rem 28rem at 50% 20%, #000, transparent 78%);
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
