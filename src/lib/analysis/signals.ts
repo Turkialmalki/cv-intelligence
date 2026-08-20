@@ -52,6 +52,22 @@ export function startsWithStrongVerb(text: string): boolean {
   return /^[a-z]{4,}ed$/.test(token) && !WEAK_OPENERS.has(token);
 }
 
+/**
+ * Bullets that open with a gerund ("Leading the migration…", "Managing a
+ * team…") describe an ongoing activity rather than a delivered result. They
+ * read as a job description; the past tense reads as a track record.
+ */
+export function startsWithGerund(text: string): boolean {
+  const token = firstToken(text);
+  if (token.length < 5 || !token.endsWith("ing")) return false;
+  // Nouns that merely happen to end in -ing are not gerund framing.
+  const NOUN_ING = new Set([
+    "engineering", "marketing", "accounting", "banking", "consulting",
+    "training", "manufacturing", "outsourcing", "onboarding", "briefing",
+  ]);
+  return !NOUN_ING.has(token);
+}
+
 export function startsWithWeakOpener(text: string): boolean {
   const normalized = normalizeForMatch(text);
   const token = firstToken(text);

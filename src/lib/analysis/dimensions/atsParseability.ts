@@ -166,6 +166,46 @@ export function scoreAtsParseability(ctx: ScoringContext): DimensionResult {
     );
   }
 
+  // Content disassociation: role headers with nothing under them, while the
+  // descriptions that belong to them sit elsewhere in the document. This is
+  // the signature of a multi-column or text-box layout being flattened in the
+  // wrong order, and it is invisible to the human author — their PDF looks
+  // perfect. Reported separately from the experience-quality finding, which
+  // describes the consequence rather than the cause.
+  const rolesWithoutBullets = doc.experience.filter(
+    (entry) => entry.bullets.length === 0,
+  );
+  const orphanedDescriptions = doc.lines.filter(
+    (line) =>
+      line.section !== "experience" &&
+      line.words >= 8 &&
+      // Skip the contact block, which is legitimately outside any section.
+      line.index > 3 &&
+      !line.text.includes("@") &&
+      (line.isBullet || /^[A-Z]/.test(line.text)),
+  );
+
+  if (
+    doc.experience.length >= 2 &&
+    rolesWithoutBullets.length >= doc.experience.length / 2 &&
+    orphanedDescriptions.length >= 3
+  ) {
+    const deduction = budget.deduct(3.5);
+    findings.push(
+      makeFinding({
+        id: "ats.content_disassociated",
+        category: CATEGORY,
+        severity: "critical",
+        title: "Your achievements are separated from the roles they belong to",
+        description: `${rolesWithoutBullets.length} of your ${doc.experience.length} roles have no text underneath them, while ${orphanedDescriptions.length} description lines sit elsewhere in the document, detached from any job. This is what a two-column or text-box layout looks like after a parser flattens it — your CV almost certainly looks correct on screen, but the software reading it cannot tell which achievement belongs to which employer.`,
+        evidence: orphanedDescriptions[0]?.text ?? null,
+        deduction,
+        recommendation:
+          "Rebuild the experience section as a single column, with each role's bullets directly beneath its own heading. Avoid text boxes, side panels and tables entirely — place every bullet in the normal flow of the document.",
+      }),
+    );
+  }
+
   if (formatting.shoutingLines >= 6) {
     const deduction = budget.deduct(1);
     findings.push(

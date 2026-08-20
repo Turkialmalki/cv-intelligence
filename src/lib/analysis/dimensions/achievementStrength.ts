@@ -3,7 +3,9 @@ import { rewriteBullet } from "../rewrite";
 import type { Finding } from "../schema";
 import {
   containsFiller,
+  firstToken,
   hasMetric,
+  startsWithGerund,
   startsWithStrongVerb,
   startsWithWeakOpener,
 } from "../signals";
@@ -151,6 +153,29 @@ export function scoreAchievementStrength(ctx: ScoringContext): DimensionResult {
           "Open every bullet with a verb that names the action you took: Led, Built, Reduced, Launched, Negotiated, Automated.",
         exampleBefore: example,
         exampleAfter: rewritten.text,
+      }),
+    );
+  }
+
+  // --- Activity framing rather than achievement framing ------------------
+  const gerundOpeners = lines.filter(startsWithGerund);
+  const gerundRatio = gerundOpeners.length / lines.length;
+  if (gerundRatio >= 0.3) {
+    const example = gerundOpeners[0]!;
+    const deduction = budget.deduct(gerundRatio >= 0.55 ? 3 : 2);
+    findings.push(
+      makeFinding({
+        id: "achievement.gerund_openers",
+        category: CATEGORY,
+        severity: gerundRatio >= 0.55 ? "high" : "medium",
+        title: "Your bullets describe ongoing activity, not finished results",
+        description: `${gerundOpeners.length} of ${lines.length} lines open with an "-ing" verb such as "${firstToken(example)}". That framing describes what you spend time on; the past tense describes what you delivered. Recruiters are hiring for outcomes, and the grammar quietly signals which one you are offering.`,
+        evidence: truncate(example, 200),
+        deduction,
+        recommendation:
+          "Switch to the completed past tense: \"Led\" instead of \"Leading\", \"Delivered\" instead of \"Delivering\". Keep the present tense only for your current role's genuinely continuing duties.",
+        exampleBefore: example,
+        exampleAfter: rewriteBullet(example, doc.language).text,
       }),
     );
   }

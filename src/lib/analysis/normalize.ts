@@ -10,6 +10,7 @@ import type { CVLanguage } from "./schema";
 import {
   containsArabic,
   isBulletLine,
+  normalizeDigits,
   normalizeForMatch,
   stripBulletGlyph,
   wordCount,
@@ -139,15 +140,85 @@ function matchHeading(line: string): SectionType | null {
 }
 
 /* -------------------------------------------------------------------------- */
+/* Line unwrapping                                                            */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Rejoins lines that a PDF's fixed column width split mid-sentence.
+ *
+ * This is one of the highest-leverage steps in the whole pipeline. A bullet
+ * like "…using React Native, JavaScript, / and Redux, resulting in a 95%
+ * positive user feedback rate" arrives as two lines. Left split, the metric
+ * lands on an orphan line that is then mistaken for a new role header — so a
+ * strong CV is told it has no measurable results and eleven undated jobs.
+ *
+ * A line is treated as a continuation when the line above it ran to near the
+ * full column width and ended mid-thought. Headings, bullets and role headers
+ * are never absorbed.
+ */
+function joinWrappedLines(rawLines: string[]): string[] {
+  const lines = rawLines.map((l) => l.trim());
+
+  // Infer the column width from the document rather than assuming one, so
+  // this adapts to different page sizes and font sizes.
+  const lengths = lines.filter((l) => l.length > 0).map((l) => l.length);
+  if (lengths.length === 0) return lines;
+  const longest = Math.max(...lengths);
+  const wrapThreshold = Math.max(56, Math.round(longest * 0.72));
+
+  const endsMidThought = (line: string): boolean =>
+    !/[.!?:;•·]$/.test(line) && !/[،؛۔]$/.test(line);
+
+  const output: string[] = [];
+
+  for (const line of lines) {
+    if (!line) {
+      output.push(line);
+      continue;
+    }
+
+    const previous = output[output.length - 1];
+    const isContinuationCandidate =
+      previous !== undefined &&
+      previous.length >= wrapThreshold &&
+      endsMidThought(previous) &&
+      !isBulletLine(line) &&
+      matchHeading(line) === null &&
+      matchHeading(previous) === null &&
+      // A line carrying its own dates is a new role, not a continuation.
+      parseDateRange(line) === null;
+
+    if (isContinuationCandidate) {
+      output[output.length - 1] = `${previous} ${line}`;
+    } else {
+      output.push(line);
+    }
+  }
+
+  return output;
+}
+
+/* -------------------------------------------------------------------------- */
 /* Contact extraction                                                         */
 /* -------------------------------------------------------------------------- */
 
 const EMAIL_RE = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/;
 const PHONE_RE =
   /(?:\+?\d{1,4}[\s.-]?)?(?:\(\d{1,4}\)[\s.-]?)?\d{3}[\s.-]?\d{3,4}[\s.-]?\d{0,4}/;
-const LINKEDIN_RE = /(?:linkedin\.com|lnkd\.in)\/[^\s,|)]+/i;
-const URL_RE =
-  /(?:https?:\/\/|www\.)[^\s,|)]+|(?:github|gitlab|behance|dribbble|medium|notion\.site|vercel\.app|netlify\.app)\.[^\s,|)]+/i;
+const LINKEDIN_RE = /(?:linkedin\.com|lnkd\.in)\/[^\s,|)•]+/i;
+/**
+ * Personal sites are frequently written bare ("turkialmalki.com"), so a
+ * scheme cannot be required. The TLD list keeps this from matching ordinary
+ * prose containing a full stop.
+ */
+const URL_RE = new RegExp(
+  [
+    "(?:https?://|www\\.)[^\\s,|)•]+",
+    "(?:github|gitlab|behance|dribbble|medium|notion\\.site|vercel\\.app|netlify\\.app)\\.[^\\s,|)•]+",
+    "[a-z0-9][a-z0-9-]{2,}\\.(?:com|net|org|io|dev|me|co|sa|app|design|portfolio)(?:/[^\\s,|)•]*)?",
+  ].join("|"),
+  "i",
+);
 
 const LOCATION_HINTS = [
   "riyadh", "jeddah", "dammam", "khobar", "mecca", "makkah", "medina",
@@ -180,22 +251,35 @@ function extractContact(lines: CVLine[]): ContactSignals {
 
   let phone: string | null = null;
   for (const line of lines.slice(0, 20)) {
-    const candidate = line.text.replace(/[٠-٩]/g, (d) =>
-      String(d.charCodeAt(0) - 0x0660),
-    );
-    // Require enough digits to be a real phone number, not a date or a ZIP.
-    const digits = candidate.replace(/\D/g, "");
-    if (digits.length >= 9 && digits.length <= 15 && PHONE_RE.test(candidate)) {
-      const m = candidate.match(PHONE_RE);
-      if (m && m[0].replace(/\D/g, "").length >= 9) {
-        phone = m[0].trim();
+    // Contact lines routinely pack an email, a site and a phone together, and
+    // digits inside an email ("…202200@gmail.com") would otherwise poison a
+    // digit count taken over the whole line. Strip those first, then judge
+    // each candidate on its own digits.
+    const candidate = normalizeDigits(line.text)
+      .replace(EMAIL_RE, " ")
+      .replace(/(?:https?:\/\/|www\.)\S+/gi, " ")
+      .replace(/[a-z0-9][a-z0-9-]{2,}\.[a-z]{2,}(?:\/\S*)?/gi, " ");
+
+    for (const match of candidate.matchAll(new RegExp(PHONE_RE, "g"))) {
+      const digits = match[0].replace(/\D/g, "");
+      // Long enough to be a real number, short enough not to be an id.
+      if (digits.length >= 9 && digits.length <= 15) {
+        phone = match[0].trim();
         break;
       }
     }
+    if (phone) break;
   }
 
   const linkedin = all.match(LINKEDIN_RE)?.[0] ?? null;
-  const portfolioMatch = all.match(URL_RE)?.[0] ?? null;
+  // Email addresses must be removed before hunting for a personal site, or
+  // the provider's domain ("gmail.com") is mistaken for a portfolio.
+  // LinkedIn is stripped as well: it is reported separately, and leaving it
+  // in means it wins the first match and hides an actual personal site.
+  const withoutKnownLinks = all
+    .replace(new RegExp(EMAIL_RE, "g"), " ")
+    .replace(new RegExp(LINKEDIN_RE, "gi"), " ");
+  const portfolioMatch = withoutKnownLinks.match(URL_RE)?.[0] ?? null;
   const portfolio =
     portfolioMatch && !LINKEDIN_RE.test(portfolioMatch) ? portfolioMatch : null;
 
@@ -283,9 +367,20 @@ function buildExperienceEntries(section: CVSection | undefined): ExperienceEntry
       (line.words <= 12 && /[|,–—-]/.test(line.text) && line.words >= 2);
 
     if (looksLikeHeader) {
-      // A bare date line directly under a header belongs to that header.
-      if (current && dateRange && !current.dateRange && current.bullets.length === 0) {
-        current.dateRange = dateRange;
+      // A role is routinely spread over two or three consecutive lines:
+      //   "Acme Group • Riyadh • Jan 2022 - Present"
+      //   "Engineering Manager • Full-time"
+      // Both look like headers. Treating them as two roles invents a job with
+      // no description and another with no dates, so consecutive header lines
+      // are merged until the first bullet arrives.
+      // Two header lines that each carry their own date range are two
+      // different jobs, not one job spread over two lines — even when the
+      // first has no bullets under it (which is itself a finding).
+      const bothDated = dateRange !== null && current?.dateRange != null;
+
+      if (current && current.bullets.length === 0 && !bothDated) {
+        current.headerLine = `${current.headerLine} — ${line.text}`;
+        current.dateRange = current.dateRange ?? dateRange;
         current.hasOrganizationHint = current.hasOrganizationHint || hasOrg;
         continue;
       }
@@ -309,18 +404,63 @@ function buildExperienceEntries(section: CVSection | undefined): ExperienceEntry
 /* Skills                                                                     */
 /* -------------------------------------------------------------------------- */
 
+/** Rejects the sentence fragments a naive comma-split pulls out of prose. */
+function isPlausibleSkill(candidate: string): boolean {
+  const skill = candidate.trim();
+  if (skill.length < 2 || skill.length > 48) return false;
+  if (wordCount(skill) > 4) return false;
+
+  // Fragments cut out of a sentence carry orphaned brackets.
+  const opens = (skill.match(/\(/g) ?? []).length;
+  const closes = (skill.match(/\)/g) ?? []).length;
+  if (opens !== closes) return false;
+
+  // "and TypeScript", "to ensure quality" — conjunction fragments.
+  if (/^(?:and|or|to|with|for|the|a|an|in|on|of|using)\b/i.test(skill)) {
+    return false;
+  }
+  // "Optimizing application performance" — a described activity, not a skill.
+  if (/^[a-z]+ing\b/i.test(skill) && wordCount(skill) > 1) return false;
+  // Must contain an actual word.
+  if (!/[a-z؀-ۿ]/i.test(skill)) return false;
+
+  return true;
+}
+
+/**
+ * Pulls the skills list out of the skills section.
+ *
+ * Two shapes are common and need different handling. A delimiter-separated
+ * list ("React, Next.js, TypeScript") splits directly. A labelled bullet
+ * ("Frontend Architecture: designing scalable systems using…") carries the
+ * competency in the *label* — splitting the prose after the colon yields
+ * sentence fragments, so the label is taken and the prose discarded.
+ */
 function extractSkills(section: CVSection | undefined): string[] {
   if (!section) return [];
   const items: string[] = [];
+
+  const push = (raw: string) => {
+    const skill = raw.trim().replace(/[.,;،؛]+$/, "").trim();
+    if (isPlausibleSkill(skill)) items.push(skill);
+  };
+
   for (const line of section.lines) {
-    const body = line.text.replace(/^[^:：]{0,40}[:：]\s*/, "");
-    for (const part of body.split(/[,،|/·•;؛]+/)) {
-      const skill = part.trim().replace(/[.]+$/, "");
-      if (skill.length >= 2 && skill.length <= 48 && wordCount(skill) <= 5) {
-        items.push(skill);
+    const labelled = line.text.match(/^(.{2,44}?)\s*[:：]\s*\S/);
+
+    if (labelled?.[1] && wordCount(labelled[1]) <= 5) {
+      // The label is the competency; split it on conjunctions only.
+      for (const part of labelled[1].split(/\s*[&+/]\s*|\s+and\s+/i)) {
+        push(part);
       }
+      continue;
+    }
+
+    for (const part of line.text.split(/[,،|/·•;؛]+/)) {
+      push(part);
     }
   }
+
   return items;
 }
 
@@ -373,7 +513,7 @@ export function normalizeCV(
   rawText: string,
   options: NormalizeOptions = {},
 ): CVDocument {
-  const rawLines = rawText.split("\n");
+  const rawLines = joinWrappedLines(rawText.split("\n"));
   const lines: CVLine[] = [];
   const sections: CVSection[] = [];
   let currentSection: CVSection | null = null;
