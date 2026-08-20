@@ -13,3 +13,6 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts.bak
 coverage/
+
+# Real CVs contain PII (names, phone numbers, emails) — never commit them
+tests/fixtures/real-cvs/
