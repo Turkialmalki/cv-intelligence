@@ -70,6 +70,21 @@ export default function RootLayout({
       className={`${inter.variable} ${plexArabic.variable}`}
       suppressHydrationWarning
     >
+      <head>
+        {/*
+          Applies the stored language before first paint.
+
+          The locale lives in localStorage, so the server cannot know it and
+          every page would otherwise render left-to-right and then flip once
+          React hydrates. For an Arabic reader that flash is the first thing
+          they see. This runs synchronously in <head>, ahead of any paint.
+        */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var l=localStorage.getItem('cv-intelligence.locale');if(!l&&navigator.language&&navigator.language.toLowerCase().indexOf('ar')===0){l='ar';}if(l==='ar'){document.documentElement.lang='ar';document.documentElement.dir='rtl';}}catch(e){}})();`,
+          }}
+        />
+      </head>
       <body>
         <LocaleProvider>{children}</LocaleProvider>
       </body>

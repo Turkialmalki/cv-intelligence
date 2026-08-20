@@ -13,6 +13,7 @@ import { FindingCard } from "./FindingCard";
 import { JobMatchPanel } from "./JobMatchPanel";
 import { PriorityActions } from "./PriorityActions";
 import { ReportHeader } from "./ReportHeader";
+import { ReportNavigation } from "./ReportNavigation";
 import { ScoreBreakdown } from "./ScoreBreakdown";
 import { LockedInsight, UpgradeCTA } from "./UpgradeCTA";
 
@@ -38,7 +39,9 @@ function Section({
   id?: string;
 }) {
   return (
-    <section id={id} className="scroll-mt-20 py-10 sm:py-12">
+    // Offset clears both sticky bars (64px header + 44px nav) so an anchored
+    // heading is not hidden underneath them.
+    <section id={id} className="scroll-mt-[124px] py-10 sm:py-12">
       <h2 className="text-2xl font-bold text-ink-900 sm:text-[1.75rem]">
         {title}
       </h2>
@@ -101,6 +104,20 @@ export function ReportView({
     },
   ];
 
+  // Only sections that actually rendered are offered in the rail.
+  const navItems = [
+    ...(result.priorities.length > 0
+      ? [{ id: "priorities", label: t.report.sections.priorities }]
+      : []),
+    { id: "breakdown", label: t.report.sections.breakdown },
+    { id: "job-match", label: t.report.jobMatchTitle },
+    ...(result.comparison.length > 0
+      ? [{ id: "comparison", label: t.report.sections.comparison }]
+      : []),
+    { id: "issues", label: t.report.sections.issues },
+    { id: "upgrade", label: t.report.sections.upgrade },
+  ];
+
   return (
     <div className="flex min-h-dvh flex-col">
       <SiteHeader showCta={false} />
@@ -112,6 +129,8 @@ export function ReportView({
           createdAt={createdAt}
           token={token}
         />
+
+        <ReportNavigation items={navItems} />
 
         <div className="container-page">
           {/* Priorities first: the single most useful thing on the page. */}
