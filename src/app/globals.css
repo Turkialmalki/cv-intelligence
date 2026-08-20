@@ -2,12 +2,13 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * --font-sans and --font-arabic are injected on <html> by next/font, which
+ * self-hosts both families. They are deliberately not redefined here: a
+ * :root definition and next/font's class have equal specificity, so whichever
+ * came later would silently win.
+ */
 :root {
-  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
-    sans-serif;
-  --font-arabic: "IBM Plex Sans Arabic", "Noto Sans Arabic", ui-sans-serif,
-    system-ui, sans-serif;
-
   --bg: #ffffff;
   --bg-subtle: #f8f9fb;
   --fg: #0f1219;
@@ -28,14 +29,14 @@
   body {
     background-color: var(--bg);
     color: var(--fg);
-    font-family: var(--font-sans);
+    font-family: var(--font-sans), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
     overflow-x: hidden;
   }
 
   [dir="rtl"] body {
-    font-family: var(--font-arabic);
+    font-family: var(--font-arabic), "Noto Sans Arabic", ui-sans-serif, system-ui, sans-serif;
   }
 
   h1,
@@ -104,7 +105,7 @@
     @apply w-full rounded-xl border border-ink-200 bg-white px-4 py-3 text-[15px]
       text-ink-900 outline-none transition
       placeholder:text-ink-400
-      focus:border-accent-500 focus:ring-4 focus:ring-accent-500/12;
+      focus:border-accent-500 focus:ring-4 focus:ring-accent-500/10;
   }
 
   .hairline {

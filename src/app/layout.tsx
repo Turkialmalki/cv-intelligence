@@ -1,9 +1,30 @@
 import type { Metadata, Viewport } from "next";
+import { IBM_Plex_Sans_Arabic, Inter } from "next/font/google";
 
 import { LocaleProvider } from "@/lib/i18n/context";
 import { getAppUrl } from "@/lib/appUrl";
 
 import "./globals.css";
+
+/**
+ * Fonts are self-hosted at build time by next/font rather than linked from
+ * Google's CDN: it removes a render-blocking third-party request, avoids the
+ * layout shift a late-arriving webfont causes, and keeps visitors' IPs from
+ * being sent to a font host.
+ */
+const inter = Inter({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "800"],
+  variable: "--font-sans",
+  display: "swap",
+});
+
+const plexArabic = IBM_Plex_Sans_Arabic({
+  subsets: ["arabic"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-arabic",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   metadataBase: new URL(getAppUrl()),
@@ -43,19 +64,12 @@ export default function RootLayout({
   return (
     // lang/dir are set here for the first paint and then kept in sync with
     // the chosen locale by LocaleProvider.
-    <html lang="en" dir="ltr" suppressHydrationWarning>
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link
-          rel="preconnect"
-          href="https://fonts.gstatic.com"
-          crossOrigin="anonymous"
-        />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap"
-          rel="stylesheet"
-        />
-      </head>
+    <html
+      lang="en"
+      dir="ltr"
+      className={`${inter.variable} ${plexArabic.variable}`}
+      suppressHydrationWarning
+    >
       <body>
         <LocaleProvider>{children}</LocaleProvider>
       </body>
